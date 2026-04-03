@@ -141,7 +141,7 @@ def migrate_from_json(json_path="photo_index.json", db_path=DB_PATH):
 def insert_photo(filepath, description=None, location=None, setting=None,
                mood=None, time_of_day=None, season=None, provider=None,
                model=None, error=None, tags=None, db_path=DB_PATH):
-    """Insert a photo record into the database and update FTS."""
+    """Insert a photo record into the database and update FTS. Returns photo_id."""
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
 
@@ -150,7 +150,7 @@ def insert_photo(filepath, description=None, location=None, setting=None,
                 "INSERT OR IGNORE INTO photos (filepath, error) VALUES (?, ?)",
                 (filepath, error),
             )
-            return
+            return None
 
         cursor.execute(
             """INSERT OR IGNORE INTO photos
@@ -176,6 +176,8 @@ def insert_photo(filepath, description=None, location=None, setting=None,
 
         # Update FTS
         _update_fts(conn, photo_id, description, location, setting, mood, time_of_day, season, filepath, tags)
+
+        return photo_id
 
 
 def _update_fts(conn, photo_id, description, location, setting, mood, time_of_day, season, filepath, tags):
@@ -239,7 +241,7 @@ def get_processed_filepaths(db_path=DB_PATH):
         return {row["filepath"] for row in cursor.fetchall()}
 
 
-def search(query, limit=30, db_path=DB_PATH):
+def search(query, limit=30, offset=0, db_path=DB_PATH):
     """Search photos using FTS5 full-text search."""
     if not query:
         return []
@@ -255,8 +257,8 @@ def search(query, limit=30, db_path=DB_PATH):
                JOIN photos p ON photos_fts.rowid = p.id
                WHERE photos_fts MATCH ?
                ORDER BY rank
-               LIMIT ?""",
-            (fts_query, limit),
+               LIMIT ? OFFSET ?""",
+            (fts_query, limit, offset),
         )
 
         results = []
@@ -270,7 +272,7 @@ def search(query, limit=30, db_path=DB_PATH):
         return results
 
 
-def search_legacy(query, limit=30, db_path=DB_PATH):
+def search_legacy(query, limit=30, offset=0, db_path=DB_PATH):
     """Fallback keyword search without FTS5 (for compatibility)."""
     if not query:
         return []
@@ -307,7 +309,25 @@ def search_legacy(query, limit=30, db_path=DB_PATH):
                 scored.append((score, photo))
 
         scored.sort(key=lambda x: x[0], reverse=True)
-        return [photo for _, photo in scored[:limit]]
+        return [photo for _, photo in scored[offset:offset + limit]]
+
+
+def search_count(query, db_path=DB_PATH):
+    """Get total count of matching photos using FTS5."""
+    if not query:
+        return 0
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        fts_query = " OR ".join(query.lower().split())
+        cursor.execute(
+            """SELECT COUNT(*) as count
+               FROM photos_fts
+               WHERE photos_fts MATCH ?""",
+            (fts_query,),
+        )
+        row = cursor.fetchone()
+        return row["count"] if row else 0
 
 
 def get_photo_count(db_path=DB_PATH):

@@ -85,6 +85,10 @@
             border-radius: 4px;
             color: #aaa;
         }
+        a.tag:hover {
+            background: #4a4a4a;
+            color: #ddd;
+        }
         .detail-filepath {
             font-size: 0.8rem;
             color: #666;
@@ -146,7 +150,7 @@
         {% if photo.tags %}
         <div class="detail-tags">
             {% for tag in photo.tags %}
-            <span class="tag">{{ tag }}</span>
+            <a href="/?q={{ tag }}" class="tag" style="text-decoration: none; cursor: pointer;">{{ tag }}</a>
             {% endfor %}
         </div>
         {% endif %}

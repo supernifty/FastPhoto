@@ -17,6 +17,9 @@ wheels/
 *.db-journal
 *.db-wal
 
+# Generated thumbnails
+thumbnails/
+
 # Generated data files
 photo_index.json
 photo_checkpoint.json

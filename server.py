@@ -34,23 +34,37 @@ async def index(request: Request):
 
 
 @app.get("/search", response_class=HTMLResponse)
-async def search(request: Request, q: str = ""):
+async def search(request: Request, q: str = "", offset: int = 0, limit: int = 30):
     """Search photos and return HTML fragment for HTMX."""
     if not q.strip():
         return templates.TemplateResponse(request, "results.html", {
             "results": [],
             "query": "",
-            "count": 0,
+            "total": 0,
+            "offset": 0,
+            "limit": limit,
+            "has_more": False,
         })
 
-    results = indexer.search(q, db_path=db.DB_PATH)
+    results = indexer.search(q, db_path=db.DB_PATH, limit=limit, offset=offset)
     if not results:
-        results = db.search_legacy(q, db_path=db.DB_PATH)
+        results = db.search_legacy(q, db_path=db.DB_PATH, limit=limit, offset=offset)
+
+    # Get total count
+    total = db.search_count(q, db_path=db.DB_PATH)
+    if total == 0 and results:
+        # Fallback count from legacy search
+        total = len(results) + offset
+
+    has_more = (offset + len(results)) < total
 
     return templates.TemplateResponse(request, "results.html", {
         "results": results,
         "query": q,
-        "count": len(results),
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "has_more": has_more,
     })
 
 
@@ -73,6 +87,26 @@ async def photo_detail(request: Request, photo_id: int):
     conn.close()
 
     return templates.TemplateResponse(request, "photo_detail.html", {"photo": photo})
+
+
+@app.get("/thumbnails/{photo_id}")
+async def serve_thumbnail(photo_id: int):
+    """Serve a thumbnail image by photo ID."""
+    thumb_path = Path("thumbnails") / f"{photo_id}.jpg"
+    if not thumb_path.exists() or not thumb_path.is_file():
+        # Fall back to full image — look up filepath from DB
+        import sqlite3
+        conn = sqlite3.connect(db.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT filepath FROM photos WHERE id = ?", (photo_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return await serve_photo(row["filepath"])
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+
+    return FileResponse(thumb_path, media_type="image/jpeg")
 
 
 @app.get("/photos/{filepath:path}")
@@ -199,3 +233,21 @@ async def rebuild_fts():
         return JSONResponse({"error": "Cannot rebuild while indexing is in progress"}, status_code=409)
     db.rebuild_fts()
     return JSONResponse({"message": "FTS index rebuilt"})
+
+
+@app.post("/api/rebuild-thumbnails")
+async def rebuild_thumbnails_endpoint():
+    """Rebuild thumbnails in the background."""
+    if indexing_lock.locked():
+        return JSONResponse({"error": "Indexing already in progress"}, status_code=409)
+
+    def run_rebuild():
+        with indexing_lock:
+            try:
+                indexer.rebuild_thumbnails()
+            except Exception as e:
+                indexer.progress.update("", 0, 0, f"Error: {e}")
+                indexer.progress.finish()
+
+    threading.Thread(target=run_rebuild, daemon=True).start()
+    return JSONResponse({"message": "Thumbnail rebuild started"})

@@ -10,6 +10,7 @@ AI-powered photo search for your personal photo collection. Index your images wi
 - **Multiple AI providers** — Anthropic Claude, OpenAI GPT-4o, Qwen VL
 - **Background indexing** — Start indexing from the web UI with live progress
 - **Large image support** — Automatic downsampling for images over 5MB
+- **Thumbnails** — 400px thumbnails generated during indexing for fast grid loading
 - **Resume capability** — Skips already-indexed photos on re-run
 
 ## Quick Start

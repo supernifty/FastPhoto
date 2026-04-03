@@ -22,8 +22,11 @@ openai_client = OpenAI()
 dashscope.api_key = os.getenv("DASHSCOPE_API_KEY", "")
 
 # Claude API limit: 5MB (base64 encoded)
-# Base64 increases size by ~33%, so target ~3MB raw to stay safely under limit
 MAX_IMAGE_BYTES = 3 * 1024 * 1024  # 3MB raw → ~4MB base64
+
+# Thumbnail settings
+THUMBNAIL_SIZE = 400  # max dimension in pixels
+THUMBNAIL_QUALITY = 85
 
 # Progress tracking (shared state for background indexing)
 class IndexProgress:
@@ -270,6 +273,29 @@ def describe_image(image_path: str, provider: str = "anthropic", model: str = No
         return describe_image_anthropic(image_path, model)
 
 
+def generate_thumbnail(image_path: Path, photo_id: int, thumb_dir: Path = None) -> Path:
+    """Generate a thumbnail for an image. Returns thumbnail path."""
+    if thumb_dir is None:
+        thumb_dir = Path("thumbnails")
+
+    thumb_dir.mkdir(parents=True, exist_ok=True)
+    thumb_path = thumb_dir / f"{photo_id}.jpg"
+
+    # Skip if thumbnail already exists and is newer than original
+    if thumb_path.exists() and thumb_path.stat().st_mtime >= image_path.stat().st_mtime:
+        return thumb_path
+
+    try:
+        with Image.open(image_path) as img:
+            if img.mode in ('RGBA', 'LA', 'P'):
+                img = img.convert('RGB')
+            img.thumbnail((THUMBNAIL_SIZE, THUMBNAIL_SIZE), Image.Resampling.LANCZOS)
+            img.save(thumb_path, 'JPEG', quality=THUMBNAIL_QUALITY, optimize=True)
+        return thumb_path
+    except Exception:
+        return None
+
+
 PROVIDERS = {
     "anthropic": {
         "default_model": "claude-haiku-4-5-20251001",
@@ -319,7 +345,8 @@ def process_folder(
         try:
             desc = describe_image(image_path, provider=provider, model=model)
 
-            db.insert_photo(
+            # Insert into database and get ID
+            photo_id = db.insert_photo(
                 filepath=str(image_path),
                 description=desc.get("description"),
                 location=desc.get("location"),
@@ -332,6 +359,12 @@ def process_folder(
                 tags=desc.get("tags", []),
                 db_path=db_path,
             )
+
+            # Generate thumbnail
+            if photo_id:
+                thumb_path = generate_thumbnail(image_path, photo_id)
+                if thumb_path:
+                    print(f"  → Thumbnail: {thumb_path}")
 
             print(f"  → {desc.get('description', '')[:80]}...")
             time.sleep(rate_limit_delay)
@@ -349,11 +382,45 @@ def process_folder(
     progress.finish()
 
 
-def search(query: str, db_path: str = db.DB_PATH) -> list:
+def rebuild_thumbnails(db_path: str = db.DB_PATH):
+    """Regenerate thumbnails for all photos in the database."""
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, filepath FROM photos WHERE error IS NULL")
+    photos = [(row["id"], row["filepath"]) for row in cursor.fetchall()]
+    conn.close()
+
+    print(f"Rebuilding thumbnails for {len(photos)} photos...")
+    progress.start(len(photos))
+
+    for i, (photo_id, filepath) in enumerate(photos):
+        path = Path(filepath)
+        if not path.exists():
+            print(f"  Skipping (not found): {filepath}")
+            progress.update(filepath, i + 1, progress.errors, f"File not found: {filepath}")
+            continue
+
+        thumb_path = generate_thumbnail(path, photo_id)
+        if thumb_path:
+            print(f"  → {thumb_path}")
+            progress.update(filepath, i + 1, progress.errors, f"Generated: {thumb_path.name}")
+        else:
+            progress.errors += 1
+            progress.update(filepath, i + 1, progress.errors, f"Failed: {filepath}")
+
+    msg = f"Done. {len(photos)} thumbnails processed ({progress.errors} errors)"
+    print(f"\n{msg}")
+    progress.update("", len(photos), progress.errors, msg)
+    progress.finish()
+
+
+def search(query: str, db_path: str = db.DB_PATH, limit: int = 30, offset: int = 0) -> list:
     """Search photos using FTS5 full-text search."""
-    results = db.search(query, db_path=db_path)
+    results = db.search(query, db_path=db_path, limit=limit, offset=offset)
     if not results:
-        results = db.search_legacy(query, db_path=db_path)
+        results = db.search_legacy(query, db_path=db_path, limit=limit, offset=offset)
     return results
 
 
@@ -370,6 +437,7 @@ if __name__ == "__main__":
     parser.add_argument("--export", action="store_true", help="Export database to JSON file")
     parser.add_argument("--delete", metavar="FILEPATH", help="Delete a photo from the database by filepath")
     parser.add_argument("--rebuild-fts", action="store_true", help="Rebuild the FTS search index")
+    parser.add_argument("--rebuild-thumbnails", action="store_true", help="Rebuild thumbnails for all photos")
 
     args = parser.parse_args()
 
@@ -380,6 +448,8 @@ if __name__ == "__main__":
             print(f"Not found: {args.delete}")
     elif args.rebuild_fts:
         db.rebuild_fts(db_path=args.db)
+    elif args.rebuild_thumbnails:
+        rebuild_thumbnails(db_path=args.db)
     elif args.export:
         db.export_to_json(db_path=args.db)
     elif args.migrate:

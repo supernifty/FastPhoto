@@ -102,6 +102,10 @@
             border-radius: 4px;
             color: #aaa;
         }
+        a.tag:hover {
+            background: #4a4a4a;
+            color: #ddd;
+        }
         .delete-btn {
             position: absolute;
             top: 0.5rem;
@@ -267,6 +271,7 @@
             hx-get="/search"
             hx-target="#results"
             hx-trigger="keyup changed delay:300ms, search"
+            hx-on::after-request="window.history.replaceState(null, '', '?q=' + encodeURIComponent(this.value))"
             name="q"
             autofocus
         >
@@ -317,7 +322,10 @@
             <div id="progress"></div>
             <hr style="border: none; border-top: 1px solid #333; margin: 1.5rem 0;">
             <h3 style="margin-bottom: 0.75rem; font-size: 0.95rem; font-weight: 500; color: #aaa;">Maintenance</h3>
-            <button class="btn" onclick="rebuildFts()">Rebuild Search Index</button>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button class="btn" onclick="rebuildFts()">Rebuild Search Index</button>
+                <button class="btn" onclick="rebuildThumbnails()">Rebuild Thumbnails</button>
+            </div>
             <div id="fts-status" style="margin-top: 0.5rem; font-size: 0.85rem; color: #888;"></div>
         </div>
     </div>
@@ -359,6 +367,18 @@
                 });
         }
         updateStats();
+
+        // Handle ?q= query parameter on page load
+        const urlParams = new URLSearchParams(window.location.search);
+        const initialQuery = urlParams.get('q');
+        if (initialQuery) {
+            const input = document.querySelector('.search-input');
+            input.value = initialQuery;
+            // Wait for HTMX to be ready, then trigger search
+            setTimeout(() => {
+                htmx.trigger(input, 'search');
+            }, 100);
+        }
 
         function showTab(tab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -473,6 +493,45 @@
                     } else {
                         status.textContent = 'Search index rebuilt successfully';
                         status.style.color = '#888';
+                    }
+                });
+        }
+
+        function rebuildThumbnails() {
+            const status = document.getElementById('fts-status');
+            status.textContent = 'Starting thumbnail rebuild...';
+            status.style.color = '#888';
+            fetch('/api/rebuild-thumbnails', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        status.textContent = data.error;
+                        status.style.color = '#ff6b6b';
+                    } else {
+                        startPolling();
+                    }
+                });
+        }
+
+        function loadMore(btn, query, offset, limit) {
+            btn.disabled = true;
+            btn.textContent = 'Loading...';
+            fetch(`/search?q=${encodeURIComponent(query)}&offset=${offset}&limit=${limit}`)
+                .then(r => r.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const newCards = doc.querySelectorAll('.photo-card');
+                    const newBtn = doc.querySelector('#load-more-container');
+
+                    const grid = document.getElementById('photo-grid');
+                    newCards.forEach(card => grid.appendChild(card));
+
+                    const container = document.getElementById('load-more-container');
+                    if (newBtn) {
+                        container.replaceWith(newBtn);
+                    } else {
+                        container.remove();
                     }
                 });
         }

@@ -13,12 +13,14 @@
     <p>Start typing to search your photos</p>
 </div>
 {% else %}
-<p class="photo-count">{{ count }} photo{{ 's' if count != 1 }} found for "{{ query }}"</p>
-<div class="photo-grid">
+{% if offset == 0 %}
+<p class="photo-count">{{ total }} photo{{ 's' if total != 1 }} found for "{{ query }}"</p>
+{% endif %}
+<div class="photo-grid" id="photo-grid">
     {% for photo in results %}
     <div class="photo-card" id="photo-{{ photo.id }}">
         <a href="/photo/{{ photo.id }}" style="text-decoration: none; color: inherit;">
-            <img src="/photos/{{ photo.filepath }}" alt="{{ photo.description or '' }}" loading="lazy">
+            <img src="/thumbnails/{{ photo.id }}" alt="{{ photo.description or '' }}" loading="lazy">
         </a>
         <div class="photo-info">
             {% if photo.description %}
@@ -27,7 +29,7 @@
             {% if photo.tags %}
             <div class="photo-tags">
                 {% for tag in photo.tags[:5] %}
-                <span class="tag">{{ tag }}</span>
+                <span class="tag" hx-get="/search" hx-vals='{"q": "{{ tag }}"}' hx-target="#results" hx-trigger="click" style="cursor: pointer;">{{ tag }}</span>
                 {% endfor %}
             </div>
             {% endif %}
@@ -36,4 +38,9 @@
     </div>
     {% endfor %}
 </div>
+{% if has_more %}
+<div id="load-more-container" style="text-align: center; margin-top: 1.5rem;">
+    <button class="btn" onclick="loadMore(this, '{{ query }}', {{ offset + limit }}, {{ limit }})">Load more</button>
+</div>
+{% endif %}
 {% endif %}
