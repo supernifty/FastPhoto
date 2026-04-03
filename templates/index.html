@@ -328,8 +328,17 @@
 
         function startPolling() {
             if (pollInterval) clearInterval(pollInterval);
+            // Show initial "Starting..." state
+            document.getElementById('progress').innerHTML = `
+                <div class="progress-bar">
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-text">Starting...</div>
+                </div>
+            `;
+            // Wait a moment for the background thread to start
             pollInterval = setInterval(updateProgress, 1000);
-            updateProgress();
         }
 
         function updateProgress() {

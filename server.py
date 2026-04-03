@@ -77,10 +77,13 @@ async def get_index_status():
 @app.get("/api/stats")
 async def get_stats():
     """Return database statistics."""
-    return JSONResponse({
-        "total": db.get_photo_count(),
-        "errors": db.get_error_count(),
-    })
+    try:
+        return JSONResponse({
+            "total": db.get_photo_count(),
+            "errors": db.get_error_count(),
+        })
+    except Exception:
+        return JSONResponse({"total": 0, "errors": 0})
 
 
 @app.post("/api/index")
