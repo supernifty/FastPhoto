@@ -16,8 +16,8 @@ AI-powered photo search for your personal photo collection. Index your images wi
 
 ```bash
 # Clone and install
-git clone https://github.com/yourusername/imagedb.git
-cd imagedb
+git clone https://github.com/supernifty/FastPhoto.git
+cd FastPhoto
 uv sync
 
 # Add your API key (at least one)
