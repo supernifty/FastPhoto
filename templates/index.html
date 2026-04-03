@@ -79,7 +79,10 @@
             height: 200px;
             object-fit: cover;
             display: block;
+            cursor: pointer;
+            transition: opacity 0.2s;
         }
+        .photo-card img:hover { opacity: 0.85; }
         .photo-info { padding: 0.75rem; position: relative; }
         .photo-desc {
             font-size: 0.85rem;
@@ -130,6 +133,61 @@
             font-size: 0.8rem;
             color: #666;
             text-align: center;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 200;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 1.5rem;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal h3 {
+            margin-bottom: 1rem;
+            font-size: 1rem;
+            color: #ccc;
+        }
+        .modal-path {
+            font-size: 0.8rem;
+            color: #888;
+            margin-bottom: 0.75rem;
+            word-break: break-all;
+        }
+        .modal-list {
+            flex: 1;
+            overflow-y: auto;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .modal-list li {
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+            border-radius: 4px;
+            color: #ccc;
+        }
+        .modal-list li:hover { background: #3a3a3a; }
+        .modal-list li.parent { color: #666; }
+        .modal-list li.parent::before { content: "📁 "; }
+        .modal-list li.dir::before { content: "📂 "; }
+        .modal-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            justify-content: flex-end;
         }
 
         .index-form { max-width: 500px; }
@@ -230,7 +288,10 @@
         <div class="index-form">
             <div class="form-group">
                 <label for="folder">Folder to index</label>
-                <input type="text" id="folder" value="./photos" placeholder="./photos">
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="folder" value="./photos" placeholder="./photos" style="flex: 1;">
+                    <button class="btn" onclick="openFolderBrowser()" style="white-space: nowrap;">Browse</button>
+                </div>
             </div>
             <div class="form-group">
                 <label for="provider">Provider</label>
@@ -258,6 +319,19 @@
             <h3 style="margin-bottom: 0.75rem; font-size: 0.95rem; font-weight: 500; color: #aaa;">Maintenance</h3>
             <button class="btn" onclick="rebuildFts()">Rebuild Search Index</button>
             <div id="fts-status" style="margin-top: 0.5rem; font-size: 0.85rem; color: #888;"></div>
+        </div>
+    </div>
+
+    <!-- Folder browser modal -->
+    <div class="modal-overlay" id="folder-modal">
+        <div class="modal">
+            <h3>Select Folder</h3>
+            <div class="modal-path" id="modal-path"></div>
+            <ul class="modal-list" id="modal-list"></ul>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeFolderBrowser()">Cancel</button>
+                <button class="btn" onclick="selectFolder()">Select</button>
+            </div>
         </div>
     </div>
 
@@ -401,6 +475,59 @@
                         status.style.color = '#888';
                     }
                 });
+        }
+
+        // Folder browser
+        let selectedFolder = '';
+
+        function openFolderBrowser() {
+            const current = document.getElementById('folder').value || '.';
+            document.getElementById('folder-modal').classList.add('active');
+            loadDirectories(current);
+        }
+
+        function closeFolderBrowser() {
+            document.getElementById('folder-modal').classList.remove('active');
+        }
+
+        function loadDirectories(path) {
+            fetch('/api/directories?path=' + encodeURIComponent(path))
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById('modal-path').textContent = data.error;
+                        document.getElementById('modal-list').innerHTML = '';
+                        return;
+                    }
+
+                    document.getElementById('modal-path').textContent = data.current;
+                    selectedFolder = data.current;
+
+                    const list = document.getElementById('modal-list');
+                    let html = '';
+
+                    if (data.parent) {
+                        html += `<li class="parent" onclick="loadDirectories('${data.parent.replace(/'/g, "\\'")}')">..</li>`;
+                    }
+
+                    for (const dir of data.directories) {
+                        const escaped = dir.path.replace(/'/g, "\\'");
+                        html += `<li class="dir" onclick="loadDirectories('${escaped}')">${dir.name}</li>`;
+                    }
+
+                    if (!html) {
+                        html = '<li style="color: #666; cursor: default;">No subfolders</li>';
+                    }
+
+                    list.innerHTML = html;
+                });
+        }
+
+        function selectFolder() {
+            if (selectedFolder) {
+                document.getElementById('folder').value = selectedFolder;
+            }
+            closeFolderBrowser();
         }
     </script>
 </body>

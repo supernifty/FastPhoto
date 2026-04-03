@@ -57,6 +57,13 @@ DASHSCOPE_API_KEY=sk-...         # For Qwen VL models
 
 You only need one. Claude Haiku 4.5 is the recommended default for quality and cost.
 
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FASTPHOTO_RESTRICT_HOME` | `true` | Restrict folder browser to home directory. Set to `false` to browse anywhere. |
+| `FASTPHOTO_RESTRICT_CWD` | `true` | Restrict photo serving to current directory. Set to `false` to serve photos from any path. |
+
 ## Usage
 
 ### Web Interface

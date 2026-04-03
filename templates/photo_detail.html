@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastPhoto - {{ photo.description[:60] if photo.description else 'Photo Detail' }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        .header {
+            position: sticky;
+            top: 0;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+            padding: 0.75rem 2rem;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .back-btn {
+            background: none;
+            border: 1px solid #444;
+            color: #ccc;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            text-decoration: none;
+        }
+        .back-btn:hover { background: #2a2a2a; }
+        .detail-container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+        .detail-image {
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+        .detail-description {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #ddd;
+            margin-bottom: 1.5rem;
+        }
+        .detail-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .meta-item {
+            background: #2a2a2a;
+            padding: 0.75rem;
+            border-radius: 6px;
+        }
+        .meta-label {
+            font-size: 0.75rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.25rem;
+        }
+        .meta-value {
+            font-size: 0.95rem;
+            color: #ccc;
+        }
+        .detail-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .tag {
+            font-size: 0.8rem;
+            padding: 0.3rem 0.75rem;
+            background: #3a3a3a;
+            border-radius: 4px;
+            color: #aaa;
+        }
+        .detail-filepath {
+            font-size: 0.8rem;
+            color: #666;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="javascript:history.back()" class="back-btn">← Back</a>
+        <span style="color: #888; font-size: 0.9rem;">Photo Detail</span>
+    </div>
+    <div class="detail-container">
+        <img class="detail-image" src="/photos/{{ photo.filepath }}" alt="{{ photo.description or '' }}">
+
+        {% if photo.description %}
+        <p class="detail-description">{{ photo.description }}</p>
+        {% endif %}
+
+        <div class="detail-meta">
+            {% if photo.location %}
+            <div class="meta-item">
+                <div class="meta-label">Location</div>
+                <div class="meta-value">{{ photo.location }}</div>
+            </div>
+            {% endif %}
+            {% if photo.setting %}
+            <div class="meta-item">
+                <div class="meta-label">Setting</div>
+                <div class="meta-value">{{ photo.setting }}</div>
+            </div>
+            {% endif %}
+            {% if photo.mood %}
+            <div class="meta-item">
+                <div class="meta-label">Mood</div>
+                <div class="meta-value">{{ photo.mood }}</div>
+            </div>
+            {% endif %}
+            {% if photo.time_of_day %}
+            <div class="meta-item">
+                <div class="meta-label">Time of Day</div>
+                <div class="meta-value">{{ photo.time_of_day }}</div>
+            </div>
+            {% endif %}
+            {% if photo.season %}
+            <div class="meta-item">
+                <div class="meta-label">Season</div>
+                <div class="meta-value">{{ photo.season }}</div>
+            </div>
+            {% endif %}
+            {% if photo.provider %}
+            <div class="meta-item">
+                <div class="meta-label">Provider</div>
+                <div class="meta-value">{{ photo.provider }}</div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if photo.tags %}
+        <div class="detail-tags">
+            {% for tag in photo.tags %}
+            <span class="tag">{{ tag }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="detail-filepath">{{ photo.filepath }}</div>
+    </div>
+</body>
+</html>

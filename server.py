@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pathlib import Path
 import threading
+import os
 import db
 import indexer
 
@@ -18,6 +19,12 @@ templates = Jinja2Templates(env=env)
 
 # Background indexing lock
 indexing_lock = threading.Lock()
+
+# Whether to restrict directory browser to home directory
+RESTRICT_TO_HOME = os.getenv("FASTPHOTO_RESTRICT_HOME", "true").lower() == "true"
+
+# Whether to restrict photo serving to current working directory
+RESTRICT_TO_CWD = os.getenv("FASTPHOTO_RESTRICT_CWD", "true").lower() == "true"
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -47,6 +54,27 @@ async def search(request: Request, q: str = ""):
     })
 
 
+@app.get("/photo/{photo_id}")
+async def photo_detail(request: Request, photo_id: int):
+    """Show full details for a single photo."""
+    import sqlite3
+    conn = sqlite3.connect(db.DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM photos WHERE id = ?", (photo_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    photo = dict(row)
+    cursor.execute("SELECT tag FROM tags WHERE photo_id = ?", (photo_id,))
+    photo["tags"] = [r["tag"] for r in cursor.fetchall()]
+    conn.close()
+
+    return templates.TemplateResponse(request, "photo_detail.html", {"photo": photo})
+
+
 @app.get("/photos/{filepath:path}")
 async def serve_photo(filepath: str):
     """Serve the actual image file."""
@@ -54,12 +82,45 @@ async def serve_photo(filepath: str):
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
 
-    try:
-        file_path.resolve().relative_to(Path.cwd().resolve())
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Access denied")
+    if RESTRICT_TO_CWD:
+        try:
+            file_path.resolve().relative_to(Path.cwd().resolve())
+        except ValueError:
+            raise HTTPException(status_code=403, detail="Access denied. Set FASTPHOTO_RESTRICT_CWD=false to allow serving files outside the current directory.")
 
     return FileResponse(file_path)
+
+
+@app.get("/api/directories")
+async def list_directories(path: str = "."):
+    """List subdirectories at a given path for the folder browser."""
+    try:
+        base = Path(path).resolve()
+
+        if RESTRICT_TO_HOME:
+            home = Path.home().resolve()
+            if not str(base).startswith(str(home)):
+                return JSONResponse({"error": "Access denied"}, status_code=403)
+
+        if not base.exists() or not base.is_dir():
+            return JSONResponse({"error": "Path not found"}, status_code=404)
+
+        entries = []
+        for item in sorted(base.iterdir()):
+            if item.is_dir() and not item.name.startswith("."):
+                entries.append({
+                    "name": item.name,
+                    "path": str(item),
+                    "parent": str(base.parent),
+                })
+
+        return JSONResponse({
+            "current": str(base),
+            "parent": str(base.parent) if (not RESTRICT_TO_HOME or base != home) else None,
+            "directories": entries,
+        })
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @app.get("/api/settings")
