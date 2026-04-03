@@ -1,0 +1,37 @@
+{% if count == 0 and query %}
+<div class="empty-state">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+    </svg>
+    <p>No photos found for "{{ query }}"</p>
+</div>
+{% elif count == 0 %}
+<div class="empty-state">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"/>
+    </svg>
+    <p>Start typing to search your photos</p>
+</div>
+{% else %}
+<p class="photo-count">{{ count }} photo{{ 's' if count != 1 }} found for "{{ query }}"</p>
+<div class="photo-grid">
+    {% for photo in results %}
+    <div class="photo-card" id="photo-{{ photo.id }}">
+        <img src="/photos/{{ photo.filepath }}" alt="{{ photo.description or '' }}" loading="lazy">
+        <div class="photo-info">
+            {% if photo.description %}
+            <p class="photo-desc">{{ photo.description }}</p>
+            {% endif %}
+            {% if photo.tags %}
+            <div class="photo-tags">
+                {% for tag in photo.tags[:5] %}
+                <span class="tag">{{ tag }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            <button class="delete-btn" onclick="deletePhoto('{{ photo.filepath }}', {{ photo.id }})" title="Delete photo">🗑️</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

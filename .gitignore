@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Environment files (contain secrets)
+.env
+
+# Database files
+*.db
+*.db-journal
+*.db-wal
+
+# Generated data files
+photo_index.json
+photo_checkpoint.json
+
+# XMP sidecar files (legacy)
+*.xmp
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Qwen Code settings
+.qwen/
+
+# macOS
+.DS_Store
